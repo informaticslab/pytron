@@ -1,0 +1,58 @@
+<PowerLayout>:
+	BoxLayout:
+		size: root.size
+		pos: root.pos
+		id: boxlayout_h
+		orientation: 'horizontal'
+		Button:
+		    id: powerOn
+			text: 'Power On'
+		Button:
+		    id: powerOff
+			text: 'Power Off'
+
+<HdmiLayout>:
+	BoxLayout:
+		orientation: 'horizontal'
+		size: root.size
+		pos: root.pos
+		Button:
+		    id: hdmi1
+			text: 'Lab PC'
+		Button:
+		    id: hdmi2
+			text: 'Guest Laptop'
+		Button:
+		    id: hdmi3
+			text: 'HDMI 3'
+
+<DisplayPortLayout>:
+	BoxLayout:
+		orientation: 'horizontal'
+		size: root.size
+		pos: root.pos
+		Button:
+		    id: dp1
+			text: 'DisplayPort  1'
+		Button:
+		    id: dp2
+			text: 'DisplayPort  2'
+		Button:
+		    id: dp3
+			text: 'DisplayPort  3'
+<VolumeLayout>:
+	BoxLayout:
+		orientation: 'horizontal'
+		size: root.size
+		pos: root.pos
+		Label:
+		    text: 'Volume'
+		VolumeSlider:
+		    on_value: self.set_volume(*args)
+
+<RootContainer>:
+	orientation: 'vertical'
+	PowerLayout:
+	HdmiLayout:
+	DisplayPortLayout:
+	VolumeLayout:

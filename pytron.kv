@@ -1,0 +1,67 @@
+<HeaderLayout>:
+	BoxLayout:
+		size: root.size
+		pos: root.pos
+		id: headerlayout_h
+		orientation: 'horizontal'
+		Label:
+		    text: 'Display Control Panel'
+		    font_size: 28
+		    text_size: self.size
+            halign: 'left'
+            valign: 'middle'
+<PowerLayout>:
+	BoxLayout:
+		size: root.size
+		pos: root.pos
+		id: boxlayout_h
+		orientation: 'horizontal'
+		Label:
+		    text: 'Display'
+		    font_size: 28
+		Button:
+		    id: powerOn
+			text: 'On'
+		    font_size: 28
+			on_press: root.btn_power_on_touched()
+		Button:
+		    id: powerOff
+			text: 'Off'
+		    font_size: 28
+			on_press: root.btn_power_off_touched()
+<HdmiLayout>:
+	BoxLayout:
+		orientation: 'horizontal'
+		size: root.size
+		pos: root.pos
+		Label:
+		    text: 'Input Source'
+		    font_size: 28
+		ToggleButton:
+		    id: hdmi1
+			text: 'Lab PC'
+		    font_size: 28
+			on_press: root.btn_source_hdmi1_touched()
+		Button:
+		    id: hdmi2
+			text: 'Guest Laptop'
+		    font_size: 28
+			on_press: root.btn_source_hdmi2_touched()
+
+<VolumeLayout>:
+	BoxLayout:
+		orientation: 'vertical'
+		size: root.size
+		pos: root.pos
+		Label:
+		    text: 'Volume'
+		    font_size: 28
+		VolumeSlider:
+		    on_value: root.set_volume(*args)
+
+<RootContainer>:
+	orientation: 'vertical'
+	HeaderLayout:
+	PowerLayout:
+	HdmiLayout:
+	VolumeLayout:
