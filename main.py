@@ -1,6 +1,6 @@
 from kivy.app import App, Widget
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.uix.slider import Slider
@@ -99,16 +99,6 @@ class PowerLayout(Widget):
     def __init__(self, **kwargs):
         super(PowerLayout, self).__init__(**kwargs)
 
-    def btn_power_on_touched(instance):
-        data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x11, msg_length=0x01, msg_data=0x01))))
-        print("Sending Power On packet = {}".format(hexlify(data)))
-        send_mdc_msg(data)
-
-    def btn_power_off_touched(instance):
-        data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x11, msg_length=0x01, msg_data=0x00))))
-        print("Sending Power Off packet = {}".format(hexlify(data)))
-        send_mdc_msg(data)
-
 
 class VolumeSlider(Slider):
     def __init__(self, **kwargs):
@@ -122,17 +112,25 @@ class VolumeLayout(Widget):
     def __init__(self, **kwargs):
         super(VolumeLayout, self).__init__(**kwargs)
 
-    def set_volume(self, instance, value):
-        vol = int(value)
-        data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x12, msg_length=0x01, msg_data=vol))))
-        send_mdc_msg(data)
-        sleep(0.2)
-        #Logger.debug('Setting volume to {}'.format(value))
-
 
 class HdmiLayout(Widget):
     def __init__(self, **kwargs):
         super(HdmiLayout, self).__init__(**kwargs)
+
+
+class RootContainer(FloatLayout):
+    def __init__(self, **kwargs):
+        super(RootContainer, self).__init__(**kwargs)
+
+    def btn_power_on_touched(instance):
+        data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x11, msg_length=0x01, msg_data=0x01))))
+        print("Sending Power On packet = {}".format(hexlify(data)))
+        send_mdc_msg(data)
+
+    def btn_power_off_touched(instance):
+        data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x11, msg_length=0x01, msg_data=0x00))))
+        print("Sending Power Off packet = {}".format(hexlify(data)))
+        send_mdc_msg(data)
 
     def btn_source_hdmi1_touched(instance):
         data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x14, msg_length=0x01, msg_data=0x21))))
@@ -144,19 +142,15 @@ class HdmiLayout(Widget):
         print("Sending Source HDMI 2 packet = {}".format(hexlify(data)))
         send_mdc_msg(data)
 
+    def set_volume(self, instance, value):
+        print("Volume value = {}".format(value))
+        vol = int(value)
+        data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x12, msg_length=0x01, msg_data=vol))))
+        print("Sending Volume packet = {}".format(hexlify(data)))
+        send_mdc_msg(data)
+        sleep(0.2)
+        #Logger.debug('Setting volume to {}'.format(value))
 
-class DisplayPortLayout(Widget):
-    def __init__(self, **kwargs):
-        super(DisplayPortLayout, self).__init__(**kwargs)
-
-
-class HeaderLayout(Widget):
-    def __init__(self, **kwargs):
-        super(HeaderLayout, self).__init__(**kwargs)
-
-class RootContainer(BoxLayout):
-    def __init__(self, **kwargs):
-        super(RootContainer, self).__init__(**kwargs)
 
 
 class PyTronApp(App):

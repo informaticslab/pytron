@@ -1,21 +1,33 @@
-<HeaderLayout>:
+<RootContainer>:
+	orientation: 'vertical'
+	padding: 10
+    canvas.before:
+        Color:
+            rgb: 0.412, 0.412, 0.412
+        Rectangle:
+            pos: self.pos
+            size: self.size
+	Label:
+        canvas.before:
+            Color:
+                rgb: .0, .0, .0
+            Rectangle:
+                pos: self.pos
+                size: self.size
+        size_hint:(1.0, 0.12)
+        pos: (0, 432)
+        text: '  Display Control Panel'
+        color: (0.365, 0.616, 0.706, 1.0)
+        font_size: 28
+        text_size: self.size
+        halign: 'left'
+        valign: 'middle'
 	BoxLayout:
-		size: root.size
-		pos: root.pos
-		id: headerlayout_h
-		orientation: 'horizontal'
-		Label:
-		    text: 'Display Control Panel'
-		    font_size: 28
-		    text_size: self.size
-            halign: 'left'
-            valign: 'middle'
-<PowerLayout>:
-	BoxLayout:
-		size: root.size
-		pos: root.pos
+        size_hint:(1.0, 0.33)
+        pos: (0, 260)
 		id: boxlayout_h
 		spacing: 10
+        padding: 10
 		orientation: 'horizontal'
 		Label:
 		    text: 'Display'
@@ -24,19 +36,22 @@
 		    id: powerOn
 			text: 'On'
 		    font_size: 28
+		    bold: True
 			on_press: root.btn_power_on_touched()
+			background_color: (0.0, 0.0, 0.0, 1.0)
 		Button:
 		    id: powerOff
 			text: 'Off'
 		    font_size: 28
+		    bold: True
+            background_color: (0.0, 0.0, 0.0, 1.0)
 			on_press: root.btn_power_off_touched()
-<HdmiLayout>:
 	BoxLayout:
 		orientation: 'horizontal'
-		size: root.size
-		pos: root.pos
+        size_hint:(1.0, 0.33)
+        pos: (0, 113)
 		spacing: 10
-
+		padding: 10
 		Label:
 		    text: 'Input Source'
 		    font_size: 28
@@ -44,28 +59,24 @@
 		    id: hdmi1
 			text: 'Lab PC'
 		    font_size: 28
+		    bold: True
+            background_color: (0.0, 0.0, 0.0, 1.0)
 			on_press: root.btn_source_hdmi1_touched()
 		Button:
 		    id: hdmi2
 			text: 'Guest Laptop'
 		    font_size: 28
+		    bold: True
+            background_color: (0.0, 0.0, 0.0, 1.0)
 			on_press: root.btn_source_hdmi2_touched()
-
-<VolumeLayout>:
 	BoxLayout:
 		orientation: 'vertical'
-		size: root.size
-		pos: root.pos
+        size_hint:(1.0, 0.20)
+        pos: (0, 10)
 		Label:
 		    text: 'Volume'
 		    font_size: 28
 		VolumeSlider:
 		    on_value: root.set_volume(*args)
 
-<RootContainer>:
-	orientation: 'vertical'
-	spacing: 10
-	HeaderLayout:
-	PowerLayout:
-	HdmiLayout:
-	VolumeLayout:
+
