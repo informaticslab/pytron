@@ -3,7 +3,9 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
+from kivy.uix.togglebutton import ToggleButton
 from kivy.uix.slider import Slider
+from kivy.properties import ListProperty
 from construct import *
 from kivy.logger import Logger
 import socket
@@ -95,6 +97,19 @@ class TvControlScreen(GridLayout):
         self.add_widget(self.btnSourceDp3)
 
 
+class ToggleButton(ToggleButtonBehavior, Image):
+    def __init__(self, **kwargs):
+        super(MyButton, self).__init__(**kwargs)
+        self.source = 'atlas://data/images/defaulttheme/checkbox_off'
+
+    def on_state(self, widget, value):
+        if value == 'down':
+            self.source = 'atlas://data/images/defaulttheme/checkbox_on'
+        else:
+            self.source = 'atlas://data/images/defaulttheme/checkbox_off'
+
+
+
 class PowerLayout(Widget):
     def __init__(self, **kwargs):
         super(PowerLayout, self).__init__(**kwargs)
@@ -122,27 +137,31 @@ class RootContainer(FloatLayout):
     def __init__(self, **kwargs):
         super(RootContainer, self).__init__(**kwargs)
 
-    def btn_power_on_touched(instance):
+    def btn_power_on_touched(self):
         data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x11, msg_length=0x01, msg_data=0x01))))
         print("Sending Power On packet = {}".format(hexlify(data)))
+        self.ids.powerOn.state = 'down'
         send_mdc_msg(data)
 
-    def btn_power_off_touched(instance):
+    def btn_power_off_touched(self):
         data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x11, msg_length=0x01, msg_data=0x00))))
         print("Sending Power Off packet = {}".format(hexlify(data)))
+        self.ids.powerOff.state = 'down'
         send_mdc_msg(data)
 
-    def btn_source_hdmi1_touched(instance):
+    def btn_source_hdmi1_touched(self):
         data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x14, msg_length=0x01, msg_data=0x21))))
         print("Sending Source HDMI 1 packet = {}".format(hexlify(data)))
+        self.ids.hdmi1.state = 'down'
         send_mdc_msg(data)
 
-    def btn_source_hdmi2_touched(instance):
+    def btn_source_hdmi2_touched(self):
         data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x14, msg_length=0x01, msg_data=0x23))))
         print("Sending Source HDMI 2 packet = {}".format(hexlify(data)))
+        self.ids.hdmi2.state = 'down'
         send_mdc_msg(data)
 
-    def set_volume(self, instance, value):
+    def set_volume(self, value):
         print("Volume value = {}".format(value))
         vol = int(value)
         data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x12, msg_length=0x01, msg_data=vol))))
@@ -150,7 +169,6 @@ class RootContainer(FloatLayout):
         send_mdc_msg(data)
         sleep(0.2)
         #Logger.debug('Setting volume to {}'.format(value))
-
 
 
 class PyTronApp(App):
