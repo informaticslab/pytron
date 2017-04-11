@@ -12,7 +12,7 @@ from time import sleep
 dst_ip = '192.168.0.10'       # ip of tv
 dst_port = 1515
 
-sim_ip = '10.0.0.15'       # ip of tv
+sim_ip = '192.168.1.73'       # ip of tv
 sim_port = 1515
 USE_SIM = True
 
@@ -219,7 +219,7 @@ class PyTronApp(App):
 
 
 def init():
-    # get_tv_status()
+    get_tv_status()
     Logger.info("Initializing Pytron application....")
 
     sleep(0.2)

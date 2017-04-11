@@ -2,8 +2,8 @@
 <project version="4">
   <component name="WebServers">
     <option name="servers">
-      <webServer id="014ad053-55e7-4e5d-8b5b-40a142db9cd7" name="PyTronHome" url="http://10.0.0.28">
-        <fileTransfer host="10.0.0.28" port="22" accessType="SFTP">
+      <webServer id="014ad053-55e7-4e5d-8b5b-40a142db9cd7" name="PyTronHome" url="http://192.168.1.60">
+        <fileTransfer host="192.168.1.60" port="22" accessType="SFTP">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" />
           </advancedOptions>
