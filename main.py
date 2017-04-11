@@ -2,6 +2,7 @@ from kivy.app import App, Widget
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.slider import Slider
 from kivy.logger import Logger
+from kivy.clock import Clock
 from construct import *
 import socket
 import sys
@@ -19,6 +20,9 @@ USE_SIM = True
 init_power = 0
 init_source = 0x21
 init_volume = 25
+
+set_volume = 25
+
 
 mdc_format = Struct(
     "fields" / RawCopy(Struct(
@@ -68,6 +72,8 @@ def send_mdc_msg(msg):
 
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)
+
     except socket.error:
         Logger.error('Failed to create socket')
         sys.exit()
@@ -104,6 +110,8 @@ def get_tv_status():
 
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)
+
     except socket.error:
         Logger.critical('Failed to create socket for MDC TV status message')
         sys.exit()
@@ -203,26 +211,33 @@ class RootContainer(FloatLayout):
         send_mdc_msg(data)
 
     def set_volume(self, instance, value):
-        Logger.info("Volume value = {}".format(value))
-        vol = int(value)
-        data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x12, msg_length=0x01, msg_data=vol))))
-        Logger.info("Sending Volume packet = {}".format(hexlify(data)))
-        send_mdc_msg(data)
-        sleep(0.2)
-        #Logger.debug('Setting volume to {}'.format(value))
+        global set_volume
 
+        Logger.info("Volume value = {}".format(set_volume))
+        set_volume = int(value)
+ 
 
 class PyTronApp(App):
 
     def build(self):
+        # call my_callback every 0.5 seconds
+        self.last_volume = 0
+        Clock.schedule_interval(self.send_mdc_updates, 0.75)
         return RootContainer()
+
+    def send_mdc_updates(self, dt):
+        global set_volume
+
+        if set_volume != self.last_volume:
+            data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x12, msg_length=0x01, msg_data=set_volume))))
+            Logger.info("Sending Volume packet = {}".format(hexlify(data)))
+            send_mdc_msg(data)
+            self.last_volume = set_volume
 
 
 def init():
     get_tv_status()
     Logger.info("Initializing Pytron application....")
-
-    sleep(0.2)
 
 if __name__ == '__main__':
     init()
