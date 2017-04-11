@@ -5,7 +5,7 @@ from _thread import *
 from binascii import hexlify
 from time import sleep
 
-HOST = '192.168.1.73'       # ip of tv
+HOST = '10.0.0.15'       # ip of tv
 PORT = 1515
 
 mdc_format = Struct(
@@ -18,6 +18,26 @@ mdc_format = Struct(
     )),
     "checksum" / Checksum(Bytes(1), lambda data: (sum(bytes(data)[1:]) % 256).to_bytes(1, byteorder='big'), this.fields.data),
 )
+
+mdc_status_response = Struct(
+    "fields" / RawCopy(Struct(
+        "header" / Const(Int8ub, 0xAA),
+        "cmd" / Int8ub,
+        "id" / Const(Int8ub, 0x01),
+        "msg_length" / Int8ub,
+        "ack_nack" / Int8ub,
+        "rcmd" /Int8ub,
+        "power" / Int8ub,
+        "volume" / Int8ub,
+        "mute" / Int8ub,
+        "input" / Int8ub,
+        "aspect" / Int8ub,
+        "ntime" / Int8ub,
+        "ftime" / Int8ub,
+    )),
+    "checksum" / Checksum(Bytes(1), lambda data: (sum(bytes(data)[1:]) % 256).to_bytes(1, byteorder='big'), this.fields.data),
+)
+
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 print('Socket created')
@@ -50,8 +70,6 @@ def client_thread(conn):
 
         print("Received packet = {}".format(hexlify(data)))
         print("Checksum = {}".format(hexlify((sum(bytes(data)[1:-1])).to_bytes(1, byteorder='big'))))
-
-
         print("Parsed message = {}".format(mdc_format.parse(data)))
 
         conn.sendall(reply)

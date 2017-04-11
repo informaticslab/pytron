@@ -30,7 +30,7 @@
         padding: 10
 		orientation: 'horizontal'
 		Label:
-		    text: 'Display'
+		    text: 'Display:'
 		    font_size: 28
 		ToggleButton:
 		    id: powerOn
@@ -41,12 +41,20 @@
 		    bold: True
 			on_press: root.btn_power_on_touched()
 		ToggleButton:
+            canvas.before:
+                Color:
+                    rgb: .0, .0, .0
+                Rectangle:
+                    pos: self.pos
+                    size: self.size
 		    id: powerOff
 			text: 'Off'
             group: 'power'
 		    font_size: 28
 		    bold: True
 			on_press: root.btn_power_off_touched()
+			#background_color: (0,0,0,1) if self.state == 'normal' else (0.365, 0.616, 0.706, 1)
+            #background_normal: ' '
 	BoxLayout:
 		orientation: 'horizontal'
         size_hint:(1.0, 0.33)
@@ -54,7 +62,7 @@
 		spacing: 10
 		padding: 10
 		Label:
-		    text: 'Input Source'
+		    text: 'Input Source:'
 		    font_size: 28
 		ToggleButton:
 		    id: hdmi1
@@ -76,8 +84,10 @@
         size_hint:(1.0, 0.20)
         pos: (0, 10)
 		Label:
-		    text: 'Volume'
+		    text: 'Volume:'
 		    font_size: 28
 		VolumeSlider:
 		    id: volume
+		    range: (0, 100)
+		    step: 1
 		    on_value: root.set_volume(*args)

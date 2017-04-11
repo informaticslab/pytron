@@ -1,4 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="ProjectRootManager" version="2" project-jdk-name="Remote  unknown interpreter (ssh://sysop@192.168.1.60:22/usr/bin/kivy)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Remote  unknown interpreter (ssh://sysop@10.0.0.21:22/usr/bin/kivy)" project-jdk-type="Python SDK" />
 </project>
