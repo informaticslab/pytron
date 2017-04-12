@@ -15,7 +15,7 @@ dst_port = 1515
 
 sim_ip = '192.168.1.73'       # ip of tv
 sim_port = 1515
-USE_SIM = True
+USE_SIM = False
 
 init_power = 0
 init_source = 0x21
@@ -198,6 +198,7 @@ class RootContainer(FloatLayout):
         self.ids.powerOff.state = 'down'
         send_mdc_msg(data)
 
+
     def btn_source_hdmi1_touched(self):
         data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x14, msg_length=0x01, msg_data=0x21))))
         Logger.info("Sending Source HDMI 1 packet = {}".format(hexlify(data)))
@@ -217,11 +218,15 @@ class RootContainer(FloatLayout):
         set_volume = int(value)
  
 
-class PyTronApp(App):
+class PytronApp(App):
+    def __init__(self, **kwargs):
+        super(PytronApp,  self).__init__(**kwargs)
+        self.last_volume = 0
+
+
 
     def build(self):
         # call my_callback every 0.5 seconds
-        self.last_volume = 0
         Clock.schedule_interval(self.send_mdc_updates, 0.75)
         return RootContainer()
 
@@ -241,4 +246,4 @@ def init():
 
 if __name__ == '__main__':
     init()
-    PyTronApp().run()
+    PytronApp().run()
