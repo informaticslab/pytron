@@ -123,6 +123,7 @@ def get_tv_status():
 
     try:
         sock.sendall(data)
+        Logger.info("Sent packet = {}".format(hexlify(data)))
     except socket.error:
         Logger.critical('Send failed')
         sys.exit()
@@ -130,7 +131,7 @@ def get_tv_status():
     # Receiving from client
     data = sock.recv(1024)
 
-    Logger.debug("Received packet = {}".format(hexlify(data)))
+    Logger.info("Received packet = {}".format(hexlify(data)))
     #print("Checksum = {}".format(hexlify((sum(bytearray(data)[1:-1])).to_bytes(1, byteorder='big'))))
 
     resp = mdc_status_response.parse(data)
@@ -222,8 +223,6 @@ class PytronApp(App):
     def __init__(self, **kwargs):
         super(PytronApp,  self).__init__(**kwargs)
         self.last_volume = 0
-
-
 
     def build(self):
         # call my_callback every 0.5 seconds
