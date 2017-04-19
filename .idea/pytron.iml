@@ -2,7 +2,7 @@
 <module type="PYTHON_MODULE" version="4">
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$" />
-    <orderEntry type="jdk" jdkName="Remote  unknown interpreter (ssh://sysop@10.0.0.21:22/usr/bin/kivy)" jdkType="Python SDK" />
+    <orderEntry type="jdk" jdkName="Remote  unknown interpreter (ssh://sysop@192.168.1.60:22/usr/bin/kivy)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
   <component name="TestRunnerService">
