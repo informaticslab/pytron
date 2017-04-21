@@ -1,6 +1,8 @@
 from kivy.app import App, Widget
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.slider import Slider
+from kivy.uix.modalview import ModalView
+from kivy.uix.button import Button
 from kivy.logger import Logger
 from kivy.clock import Clock
 from construct import *
@@ -9,6 +11,8 @@ import sys
 import argparse
 from binascii import hexlify
 from time import sleep
+import datetime
+
 
 dst_ip = '192.168.0.10'       # ip of tv
 dst_port = 1515
@@ -20,9 +24,11 @@ USE_SIM = False
 init_power = 0
 init_source = 0x21
 init_volume = 25
-
 set_volume = 25
 
+inactive_secs = 0
+
+POWER_SAVE_SECS = 120
 
 mdc_format = Struct(
     "fields" / RawCopy(Struct(
@@ -67,15 +73,15 @@ mdc_status_response = Struct(
 def send_mdc_msg(msg):
 
     # create socket
-    Logger.debug('Creating socket for Samsung TV MDC protocol')
-    Logger.debug("Sending MDC Msg {}".format(hexlify(msg)))
+    Logger.debug("Pytron: Creating socket for Samsung TV MDC protocol")
+    Logger.debug("Pytron: Sending MDC Msg {}".format(hexlify(msg)))
 
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(5)
 
     except socket.error:
-        Logger.error('Failed to create socket')
+        Logger.error('Pytron: Failed to create socket')
         sys.exit()
 
     if USE_SIM:
@@ -86,12 +92,12 @@ def send_mdc_msg(msg):
     try:
         sock.sendall(msg)
     except socket.error:
-        Logger.critical('Send MDC message failed')
+        Logger.critical('Pytron: Send MDC message failed')
         sys.exit()
 
 
     # Receive data
-    Logger.debug('Received MDC message from from TV')
+    Logger.debug('Pytron: Received MDC message from from TV')
     #reply = sock.recv(1024)
     #print(reply)
 
@@ -102,18 +108,18 @@ def get_tv_status():
     global init_power, init_source, init_volume
 
     data = mdc_status_request.build(dict(fields=dict(value=dict())))
-    Logger.info("Sending Status Request packet = {}".format(hexlify(data)))
+    Logger.info("Pytron: Sending Status Request packet = {}".format(hexlify(data)))
 
     # create socket
-    Logger.debug('Creating socket for Samsung MDC TV Status message')
-    Logger.debug("Sending MDC Status request {}".format(hexlify(data)))
+    Logger.debug('Pytron: Creating socket for Samsung MDC TV Status message')
+    Logger.debug("Pytron: Sending MDC Status request {}".format(hexlify(data)))
 
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(5)
 
     except socket.error:
-        Logger.critical('Failed to create socket for MDC TV status message')
+        Logger.critical('Pytron: Failed to create socket for MDC TV status message')
         sys.exit()
 
     if USE_SIM:
@@ -123,19 +129,20 @@ def get_tv_status():
 
     try:
         sock.sendall(data)
+        Logger.info("Pytron: Sent packet = {}".format(hexlify(data)))
     except socket.error:
-        Logger.critical('Send failed')
+        Logger.critical('Pytron: Send failed')
         sys.exit()
 
     # Receiving from client
     data = sock.recv(1024)
 
-    Logger.debug("Received packet = {}".format(hexlify(data)))
+    Logger.info("Pytron: Received packet = {}".format(hexlify(data)))
     #print("Checksum = {}".format(hexlify((sum(bytearray(data)[1:-1])).to_bytes(1, byteorder='big'))))
 
     resp = mdc_status_response.parse(data)
-    Logger.debug("Parsed message = {}".format(resp))
-    Logger.debug("ACK/NACK = {}".format(resp.fields.value.ack_nack))
+    Logger.debug("Pytron: Parsed message = {}".format(resp))
+    Logger.debug("Pytron: ACK/NACK = {}".format(resp.fields.value.ack_nack))
 
     init_power = resp.fields.value.power
     init_source = resp.fields.value.input
@@ -169,6 +176,8 @@ class HdmiLayout(Widget):
 
 
 class RootContainer(FloatLayout):
+    global inactive_secs
+
     def __init__(self, **kwargs):
         super(RootContainer, self).__init__(**kwargs)
         if init_power == 0:
@@ -187,47 +196,59 @@ class RootContainer(FloatLayout):
         self.ids.volume.value = init_volume
 
     def btn_power_on_touched(self):
+        self.clear_inactive_secs()
         data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x11, msg_length=0x01, msg_data=0x01))))
-        Logger.info("Sending Power On packet = {}".format(hexlify(data)))
+        Logger.info("Pytron: Sending Power On packet = {}".format(hexlify(data)))
         self.ids.powerOn.state = 'down'
         send_mdc_msg(data)
 
     def btn_power_off_touched(self):
+        self.clear_inactive_secs()
         data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x11, msg_length=0x01, msg_data=0x00))))
-        Logger.info("Sending Power Off packet = {}".format(hexlify(data)))
+        Logger.info("Pytron: Sending Power Off packet = {}".format(hexlify(data)))
         self.ids.powerOff.state = 'down'
         send_mdc_msg(data)
 
-
     def btn_source_hdmi1_touched(self):
+        self.clear_inactive_secs()
         data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x14, msg_length=0x01, msg_data=0x21))))
-        Logger.info("Sending Source HDMI 1 packet = {}".format(hexlify(data)))
+        Logger.info("Pytron: Sending Source HDMI 1 packet = {}".format(hexlify(data)))
         self.ids.hdmi1.state = 'down'
         send_mdc_msg(data)
 
     def btn_source_hdmi2_touched(self):
+        self.clear_inactive_secs()
         data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x14, msg_length=0x01, msg_data=0x23))))
-        Logger.info("Sending Source HDMI 2 packet = {}".format(hexlify(data)))
+        Logger.info("Pytron: Sending Source HDMI 2 packet = {}".format(hexlify(data)))
         self.ids.hdmi2.state = 'down'
         send_mdc_msg(data)
 
     def set_volume(self, instance, value):
         global set_volume
 
-        Logger.info("Volume value = {}".format(set_volume))
+        self.clear_inactive_secs()
+        Logger.info("Pytron: Volume value = {}".format(set_volume))
         set_volume = int(value)
- 
+
+    def clear_inactive_secs(self):
+        global inactive_secs
+        inactive_secs = 0
+
 
 class PytronApp(App):
     def __init__(self, **kwargs):
         super(PytronApp,  self).__init__(**kwargs)
         self.last_volume = 0
-
-
+        self.powerSaveModalView = None
+        self.content = None
+        self.savingPower = False
+        self.powerSaveModeSecs = 0
+        self.backlightOn = True
 
     def build(self):
-        # call my_callback every 0.5 seconds
+        # call my_callback every 3/4 of a second
         Clock.schedule_interval(self.send_mdc_updates, 0.75)
+        Clock.schedule_interval(self.check_date_time, 1.0)
         return RootContainer()
 
     def send_mdc_updates(self, dt):
@@ -235,14 +256,56 @@ class PytronApp(App):
 
         if set_volume != self.last_volume:
             data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x12, msg_length=0x01, msg_data=set_volume))))
-            Logger.info("Sending Volume packet = {}".format(hexlify(data)))
+            Logger.info("Pytron: Sending Volume packet = {}".format(hexlify(data)))
             send_mdc_msg(data)
             self.last_volume = set_volume
+
+    def check_date_time(self, dt):
+        global inactive_secs
+        if inactive_secs > POWER_SAVE_SECS:
+            # create content and add it to the view
+            if self.powerSaveModalView is None:
+                self.content = Button(text='Going into screen saver mode. Touch to dismiss.', font_size='28sp')
+                self.powerSaveModalView = ModalView(size_hint=(None, None), size=(800, 480), auto_dismiss=False)
+                self.powerSaveModalView.add_widget(self.content)
+
+                # bind the on_press event of the button to the dismiss function
+                self.content.bind(on_press=self.dismiss_power_save_modal)
+
+                # open the view
+                self.powerSaveModalView.open()
+                self.savingPower = True
+
+        else:
+            inactive_secs += 1
+
+        if self.savingPower is True:
+            if self.powerSaveModeSecs < 10:
+                self.powerSaveModeSecs += 1
+            elif self.backlightOn is True:
+                self.backlightOn = False
+                with open('/sys/class/backlight/rpi_backlight/bl_power', 'w') as f:
+                    f.write("1")
+
+    def dismiss_power_save_modal(self, dt):
+        global inactive_secs
+
+        inactive_secs = 0
+        if self.powerSaveModalView:
+            self.powerSaveModalView.dismiss()
+        self.powerSaveModalView = None
+        self.savingPower = False
+        self.backlightOn = True
+        self.powerSaveModeSecs = 0
+        with open('/sys/class/backlight/rpi_backlight/bl_power', 'w') as f:
+            f.write("0")
+
+        Logger.info("Pytron: Got into dismiss_power_save_modal")
 
 
 def init():
     get_tv_status()
-    Logger.info("Initializing Pytron application....")
+    Logger.info("Pytron: Initializing application....")
 
 if __name__ == '__main__':
     init()
