@@ -28,7 +28,9 @@ set_volume = 25
 
 inactive_secs = 0
 
-POWER_SAVE_SECS = 120
+POWER_SAVE_SECS = 240
+NIGHTLY_POWER_OFF_HOUR = 19
+NIGHTLY_POWER_OFF_MINUTE = 00
 
 mdc_format = Struct(
     "fields" / RawCopy(Struct(
@@ -116,7 +118,7 @@ def get_tv_status():
 
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(5)
+        sock.settimeout(15)
 
     except socket.error:
         Logger.critical('Pytron: Failed to create socket for MDC TV status message')
@@ -132,21 +134,24 @@ def get_tv_status():
         Logger.info("Pytron: Sent packet = {}".format(hexlify(data)))
     except socket.error:
         Logger.critical('Pytron: Send failed')
-        sys.exit()
 
     # Receiving from client
-    data = sock.recv(1024)
+    try:
+        data = sock.recv(1024)
 
-    Logger.info("Pytron: Received packet = {}".format(hexlify(data)))
-    #print("Checksum = {}".format(hexlify((sum(bytearray(data)[1:-1])).to_bytes(1, byteorder='big'))))
+        Logger.info("Pytron: Received packet = {}".format(hexlify(data)))
+        #print("Checksum = {}".format(hexlify((sum(bytearray(data)[1:-1])).to_bytes(1, byteorder='big'))))
 
-    resp = mdc_status_response.parse(data)
-    Logger.debug("Pytron: Parsed message = {}".format(resp))
-    Logger.debug("Pytron: ACK/NACK = {}".format(resp.fields.value.ack_nack))
+        resp = mdc_status_response.parse(data)
+        Logger.debug("Pytron: Parsed message = {}".format(resp))
+        Logger.debug("Pytron: ACK/NACK = {}".format(resp.fields.value.ack_nack))
 
-    init_power = resp.fields.value.power
-    init_source = resp.fields.value.input
-    init_volume = resp.fields.value.volume
+        init_power = resp.fields.value.power
+        init_source = resp.fields.value.input
+        init_volume = resp.fields.value.volume
+
+    except socket.error:
+        Logger.critical('Pytron: socket receive failed in get_tv_status()')
 
     # came out of loop
     sock.close()
@@ -248,7 +253,11 @@ class PytronApp(App):
     def build(self):
         # call my_callback every 3/4 of a second
         Clock.schedule_interval(self.send_mdc_updates, 0.75)
-        Clock.schedule_interval(self.check_date_time, 1.0)
+        Clock.schedule_interval(self.pi_screen_saver, 1.0)
+        Clock.schedule_interval(self.nightly_power_off_tv, 50.0)
+        # Clock.schedule_interval(self.update_tv_status, 3.0)
+
+
         return RootContainer()
 
     def send_mdc_updates(self, dt):
@@ -260,7 +269,7 @@ class PytronApp(App):
             send_mdc_msg(data)
             self.last_volume = set_volume
 
-    def check_date_time(self, dt):
+    def pi_screen_saver(self, dt):
         global inactive_secs
         if inactive_secs > POWER_SAVE_SECS:
             # create content and add it to the view
@@ -287,6 +296,42 @@ class PytronApp(App):
                 with open('/sys/class/backlight/rpi_backlight/bl_power', 'w') as f:
                     f.write("1")
 
+    def nightly_power_off_tv(self, dt):
+        now = datetime.datetime.now()
+
+        # turn TV power off at 7pm
+        if now.hour == NIGHTLY_POWER_OFF_HOUR and now.minute == NIGHTLY_POWER_OFF_MINUTE:
+            data = mdc_format.build(dict(fields=dict(value=dict(cmd=0x11, msg_length=0x01, msg_data=0x00))))
+            Logger.info("Pytron: Sending nightly power off packet = {}".format(hexlify(data)))
+            send_mdc_msg(data)
+
+    def update_tv_status(self, dt):
+        if self.savingPower is True:
+            return
+
+        get_tv_status()
+        if init_power == 0:
+            self.root.ids.powerOff.state = 'down'
+            self.root.ids.powerOn.state = 'normal'
+
+        else:
+            self.root.ids.powerOn.state = 'down'
+            self.root.ids.powerOff.state = 'normal'
+
+        if init_source == 0x21 or init_source == 0x22:
+            self.root.ids.hdmi1.state = 'down'
+            self.root.ids.hdmi2.state = 'normal'
+
+        elif init_source == 0x23 or init_source == 0x24:
+            self.root.ids.hdmi2.state = 'down'
+            self.root.ids.hdmi1.state = 'normal'
+
+        else:
+            self.root.ids.hdmi1.state = 'normal'
+            self.root.ids.hdmi2.state = 'normal'
+
+        self.root.ids.volume.value = init_volume
+
     def dismiss_power_save_modal(self, dt):
         global inactive_secs
 
@@ -301,6 +346,7 @@ class PytronApp(App):
             f.write("0")
 
         Logger.info("Pytron: Got into dismiss_power_save_modal")
+        return
 
 
 def init():
