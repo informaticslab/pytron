@@ -152,7 +152,6 @@ def get_tv_status():
 
     except socket.error:
         Logger.critical('Pytron: socket receive failed in get_tv_status()')
-        sys.exit()
 
     # came out of loop
     sock.close()
@@ -256,7 +255,7 @@ class PytronApp(App):
         Clock.schedule_interval(self.send_mdc_updates, 0.75)
         Clock.schedule_interval(self.pi_screen_saver, 1.0)
         Clock.schedule_interval(self.nightly_power_off_tv, 50.0)
-        Clock.schedule_interval(self.update_tv_status, 3.0)
+        # Clock.schedule_interval(self.update_tv_status, 3.0)
 
 
         return RootContainer()
@@ -348,8 +347,6 @@ class PytronApp(App):
 
         Logger.info("Pytron: Got into dismiss_power_save_modal")
         return
-
-
 
 
 def init():
