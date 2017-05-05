@@ -255,10 +255,13 @@ class PytronApp(App):
         Clock.schedule_interval(self.send_mdc_updates, 0.75)
         Clock.schedule_interval(self.pi_screen_saver, 1.0)
         Clock.schedule_interval(self.nightly_power_off_tv, 50.0)
+        Clock.schedule_interval(self.update_time, 1.0)
         # Clock.schedule_interval(self.update_tv_status, 3.0)
 
-
         return RootContainer()
+
+    def update_time(self, dt):
+        self.root.ids.label_time.text = str(datetime.datetime.now().strftime("%a, %B %d, %I:%M:%S %p"))
 
     def send_mdc_updates(self, dt):
         global set_volume

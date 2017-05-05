@@ -14,14 +14,30 @@
             Rectangle:
                 pos: self.pos
                 size: self.size
-        size_hint:(1.0, 0.12)
+        size_hint:(0.5, 0.12)
         pos: (0, 432)
         text: 'Samsung TV Control Panel'
         color: (0.365, 0.616, 0.706, 1.0)
         font_size: 28
         text_size: self.size
-        halign: 'center'
+        halign: 'left'
         valign: 'middle'
+	Label:
+        canvas.before:
+            Color:
+                rgb: .0, .0, .0
+            Rectangle:
+                pos: self.pos
+                size: self.size
+        size_hint:(.5, 0.12)
+        pos: (400, 432)
+        text: '12:30pm'
+        color: (0.365, 0.616, 0.706, 1.0)
+        font_size: 28
+        text_size: self.size
+        halign: 'right'
+        valign: 'middle'
+        id: label_time
 	BoxLayout:
         size_hint:(1.0, 0.33)
         pos: (0, 260)
