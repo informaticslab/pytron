@@ -14,11 +14,11 @@ from time import sleep
 import datetime
 
 
-dst_ip = '192.168.0.10'       # ip of tv
-dst_port = 1515
+DEST_IP = '192.168.0.10'       # ip of tv
+DEST_PORT = 1515
 
-sim_ip = '192.168.1.73'       # ip of tv
-sim_port = 1515
+SIM_IP = '192.168.1.73'       # ip of tv
+SIM_PORT = 1515
 USE_SIM = False
 
 init_power = 0
@@ -87,9 +87,9 @@ def send_mdc_msg(msg):
         sys.exit()
 
     if USE_SIM:
-        sock.connect((sim_ip, sim_port))
+        sock.connect((SIM_IP, SIM_PORT))
     else:
-        sock.connect((dst_ip, dst_port))
+        sock.connect((DEST_IP, DEST_PORT))
 
     try:
         sock.sendall(msg)
@@ -125,9 +125,9 @@ def get_tv_status():
         sys.exit()
 
     if USE_SIM:
-        sock.connect((sim_ip, sim_port))
+        sock.connect((SIM_IP, SIM_PORT))
     else:
-        sock.connect((dst_ip, dst_port))
+        sock.connect((DEST_IP, DEST_PORT))
 
     try:
         sock.sendall(data)
