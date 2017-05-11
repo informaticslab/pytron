@@ -1,9 +1,9 @@
 import socket
-import struct
 import threading
 import queue
-import logging
 from construct import *
+import time
+
 from binascii import hexlify
 
 DEST_IP = '192.168.0.10'       # ip of tv
@@ -12,6 +12,17 @@ DEST_PORT = 1515
 SIM_IP = 'localhost'       # ip of tv
 SIM_PORT = 1515
 USE_SIM = True
+
+mdc_format = Struct(
+    "fields" / RawCopy(Struct(
+        "header" / Const(Int8ub, 0xAA),
+        "cmd" / Int8ub,
+        "id" / Const(Int8ub, 0x01),
+        "msg_length" / Int8ub,
+        "msg_data" / Int8ub,
+    )),
+    "checksum" / Checksum(Bytes(1), lambda data: sum(bytearray(data)[1:]) % 256, this.fields.data),
+)
 
 mdc_status_request = Struct(
     "fields" / RawCopy(Struct(
@@ -42,6 +53,32 @@ mdc_status_response = Struct(
 )
 
 
+POWER_ON_MESSAGE = mdc_format.build(dict(fields=dict(value=dict(cmd=0x11, msg_length=0x01, msg_data=0x01))))
+POWER_OFF_MESSAGE = mdc_format.build(dict(fields=dict(value=dict(cmd=0x11, msg_length=0x01, msg_data=0x00))))
+HDMI1_INPUT_MESSAGE = mdc_format.build(dict(fields=dict(value=dict(cmd=0x14, msg_length=0x01, msg_data=0x21))))
+HDMI2_INPUT_MESSAGE = mdc_format.build(dict(fields=dict(value=dict(cmd=0x14, msg_length=0x01, msg_data=0x23))))
+
+
+def queue_power_on_cmd(cmd_q):
+    cmd_q.put(POWER_ON_MESSAGE)
+
+
+def queue_power_off_cmd(cmd_q):
+    cmd_q.put(POWER_OFF_MESSAGE)
+
+
+def queue_hmdi1_cmd(cmd_q):
+    cmd_q.put(HDMI1_INPUT_MESSAGE)
+
+
+def queue_hmdi2_cmd(cmd_q):
+    cmd_q.put(HDMI2_INPUT_MESSAGE)
+
+
+def queue_volume_cmd(cmd_q, vol):
+    cmd_q.put(mdc_format.build(dict(fields=dict(value=dict(cmd=0x12, msg_length=0x01, msg_data=vol)))))
+
+
 class ClientReply(object):
     """ A reply from the client thread.
         Each reply type has its associated data:
@@ -62,52 +99,91 @@ class MdcCommsThread(threading.Thread):
         can be controlled via the cmd_q Queue attribute. Replies are
         placed in the reply_q Queue attribute.
     """
-    def __init__(self, result_q=None):
+
+    def __init__(self, result_q=None, cmd_q=None):
         super(MdcCommsThread, self).__init__()
         self.result_q = result_q
+        self.cmd_q = cmd_q
         self.alive = threading.Event()
         self.alive.set()
         self.socket = None
-        self.mdc_request = mdc_status_request.build(dict(fields=dict(value=dict())))
+        self.mdc_status_request = mdc_status_request.build(dict(fields=dict(value=dict())))
+
+        if USE_SIM:
+            self.ip = SIM_IP
+            self.port = SIM_PORT
+        else:
+            self.ip = DEST_IP
+            self.port = DEST_PORT
 
     def run(self):
+
+        cmd_q_empty_tics = 0
         while self.alive.isSet():
+
+            try:
+                cmd_data = self.cmd_q.get(True, 0.05)
+                try:
+
+                    self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    self.socket.settimeout(4)
+                    self.socket.connect((self.ip, self.port))
+                    self.socket.sendall(cmd_data)
+                    data = self.socket.recv(1024)
+                except socket.error:
+                    self.result_q.put((-1, -1, -1))
+                    continue
+                except socket.timeout:
+                    self.result_q.put((-1, -1, -1))
+                    continue
+                finally:
+                    self.socket.close()
+
+            except queue.Empty:
+                if cmd_q_empty_tics < 100:
+                    cmd_q_empty_tics += 1
+                    continue
+                else:
+                    cmd_q_empty_tics = 0
+
             try:
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.socket.settimeout(15)
-
+                self.socket.settimeout(4)
             except socket.error:
-                logging.critical('Pytron: Failed to create socket for MDC TV status message')
+                print('Pytron: Failed to create socket for MDC TV status message')
                 sys.exit()
 
-            if USE_SIM:
-                self.socket.connect((SIM_IP, SIM_PORT))
-            else:
-                self.socket.connect((DEST_IP, DEST_PORT))
-
             try:
-                self.socket.sendall(data)
-                logging.info("Pytron: Sent packet = {}".format(hexlify(data)))
+                self.socket.connect((self.ip, self.port ))
+                self.socket.sendall(self.mdc_status_request)
+            except socket.timeout:
+                self.result_q.put((-1, -1, -1))
+                continue
             except socket.error:
-                logging.critical('Pytron: Send failed')
+                self.result_q.put((-1, -1, -1))
+                continue
 
             # Receiving from client
             try:
                 data = self.socket.recv(1024)
 
-                logging.info("Pytron: Received packet = {}".format(hexlify(data)))
                 # print("Checksum = {}".format(hexlify((sum(bytearray(data)[1:-1])).to_bytes(1, byteorder='big'))))
 
-                resp = mdc_status_response.parse(data)
-                logging.debug("Pytron: Parsed message = {}".format(resp))
-                logging.debug("Pytron: ACK/NACK = {}".format(resp.fields.value.ack_nack))
-
-                init_power = resp.fields.value.power
-                init_source = resp.fields.value.input
-                init_volume = resp.fields.value.volume
-
             except socket.error:
-                logging.critical('Pytron: socket receive failed in get_tv_status()')
+                self.result_q.put((-1, -1, -1))
+                continue
+
+            try:
+                resp = mdc_status_response.parse(data)
+
+            except core.FieldError:
+                self.result_q.put((-1, -1, -1))
+                continue
+
+                #print("Pytron: Parsed message = {}".format(resp))
+                #print("Pytron: ACK/NACK = {}".format(resp.fields.value.ack_nack))
+
+            self.result_q.put((resp.fields.value.power, resp.fields.value.input, resp.fields.value.volume))
 
             # came out of loop
             self.socket.close()
@@ -116,46 +192,29 @@ class MdcCommsThread(threading.Thread):
         self.alive.clear()
         threading.Thread.join(self, timeout)
 
-    def get_status(self):
-
-
-    def _error_reply(self, errstr):
-        return ClientReply(ClientReply.ERROR, errstr)
-
-    def _success_reply(self, data=None):
-        return ClientReply(ClientReply.SUCCESS, data)
 
 def main(args):
     # Create a single input and a single output queue for all threads.
     status_result_q = queue.Queue()
+    cmd_q = queue.Queue()
 
-    # Create the "thread pool"
-    pool = [WorkerThread(dir_q=dir_q, result_q=result_q) for i in range(4)]
+    # Create the comms thread
+    comms_thread = MdcCommsThread(result_q=status_result_q, cmd_q=cmd_q)
+    comms_thread.start()
 
-    # Start all threads
-    for thread in pool:
-        thread.start()
-
-    # Give the workers some work to do
-    work_count = 0
-    for dir in args:
-        if os.path.exists(dir):
-            work_count += 1
-            dir_q.put(dir)
-
-    print 'Assigned %s dirs to workers' % work_count
-
-    # Now get all the results
-    while work_count > 0:
-        # Blocking 'get' from a Queue.
-        result = result_q.get()
-        print 'From thread %s: %s files found in dir %s' % (
-            result[0], len(result[2]), result[1])
-        work_count -= 1
+    # Now get 100 results
+    count = 100
+    while count > 0:
+        try:
+            # Blocking 'get' from a Queue.
+            result = status_result_q.get(True, 0.1)
+            print("Power = {}, Input = {}, Volume = {}, Time = {}".format(result[0], result[1], result[2], time.localtime(time.time())))
+            count -= 1
+        except queue.Empty:
+            continue
 
     # Ask threads to die and wait for them to do it
-    for thread in pool:
-        thread.join()
+    comms_thread.join()
 
 
 if __name__ == '__main__':
