@@ -9,7 +9,8 @@ from kivy.core.window import Window
 
 import datetime
 import queue
-import mdc_comms_thread
+from mdc_comms_thread import MdcCommsThread, queue_volume_cmd, queue_power_on_cmd, queue_power_off_cmd
+from mdc_comms_thread import queue_hmdi1_cmd, queue_hmdi2_cmd
 
 
 DEST_IP = '192.168.0.10'       # ip of tv
@@ -17,21 +18,24 @@ DEST_PORT = 1515
 
 SIM_IP = 'localhost'       # ip of tv
 SIM_PORT = 1515
-USE_SIM = True
+USE_SIM = False
 
 init_power = 0
 init_source = 0x21
 init_volume = 25
 set_volume = 25
-
 inactive_secs = 0
 
 POWER_SAVE_SECS = 240
 NIGHTLY_POWER_OFF_HOUR = 19
 NIGHTLY_POWER_OFF_MINUTE = 00
 
-cmd_q = None
+mdc_cmd_q = None
+mdc_status_q = None
+mdc_cmd_thread = None
+mdc_status_thread = None
 
+# comms_thread = None
 
 class PowerLayout(Widget):
     def __init__(self, **kwargs):
@@ -57,7 +61,7 @@ class HdmiLayout(Widget):
 
 
 class RootContainer(FloatLayout):
-    global inactive_secs, cmd_q
+    global inactive_secs, mdc_cmd_q
 
     def __init__(self, **kwargs):
         super(RootContainer, self).__init__(**kwargs)
@@ -75,33 +79,33 @@ class RootContainer(FloatLayout):
             self.ids.hdmi2.state = 'normal'
 
         self.ids.volume.value = init_volume
-        Window.size = (800,480)
+        Window.size = (800, 480)
 
     def btn_power_on_touched(self):
         self.clear_inactive_secs()
         self.ids.powerOn.state = 'down'
-        mdc_comms_thread.queue_power_on_cmd(cmd_q)
+        queue_power_on_cmd(mdc_cmd_q)
 
     def btn_power_off_touched(self):
         self.clear_inactive_secs()
         self.ids.powerOff.state = 'down'
-        mdc_comms_thread.queue_power_off_cmd(cmd_q)
+        queue_power_off_cmd(mdc_cmd_q)
 
     def btn_source_hdmi1_touched(self):
         self.clear_inactive_secs()
         self.ids.hdmi1.state = 'down'
-        mdc_comms_thread.queue_hmdi1_cmd(cmd_q)
+        queue_hmdi1_cmd(mdc_cmd_q)
 
     def btn_source_hdmi2_touched(self):
         self.clear_inactive_secs()
         self.ids.hdmi2.state = 'down'
-        mdc_comms_thread.queue_hmdi2_cmd(cmd_q)
+        queue_hmdi2_cmd(mdc_cmd_q)
 
     def set_volume(self, instance, value):
         global set_volume
         self.clear_inactive_secs()
         set_volume = int(value)
-        #mdc_comms_thread.queue_volume_cmd(cmd_q, set_volume)
+        #queue_volume_cmd(mdc_cmd_q, set_volume)
 
 
     @staticmethod
@@ -112,7 +116,6 @@ class RootContainer(FloatLayout):
 
 class PytronApp(App):
     def __init__(self, **kwargs):
-        global cmd_q
         super(PytronApp,  self).__init__(**kwargs)
         self.last_volume = 0
         self.powerSaveModalView = None
@@ -121,10 +124,6 @@ class PytronApp(App):
         self.savingPower = False
         self.powerSaveModeSecs = 0
         self.backlightOn = True
-        self.display_status_q = queue.Queue()
-        cmd_q = queue.Queue()
-        self.comm_thread = mdc_comms_thread.MdcCommsThread(result_q=self.display_status_q, cmd_q=cmd_q)
-        self.root_window
 
     def build(self):
         # call my_callback every 3/4 of a second
@@ -134,7 +133,6 @@ class PytronApp(App):
         Clock.schedule_interval(self.update_time, 1.0)
         Clock.schedule_interval(self.update_tv_status, 5.0)
         # Create the comms thread
-        self.comm_thread.start()
 
         return RootContainer()
 
@@ -145,12 +143,11 @@ class PytronApp(App):
         global set_volume
 
         if set_volume != self.last_volume:
-            mdc_comms_thread.queue_volume_cmd(cmd_q, set_volume)
+            queue_volume_cmd(mdc_cmd_q, set_volume)
             self.last_volume = set_volume
 
     def pi_screen_saver(self, dt):
         global inactive_secs
-
 
         if inactive_secs > POWER_SAVE_SECS:
             # create content and add it to the view
@@ -183,17 +180,17 @@ class PytronApp(App):
 
         # turn TV power off at 7pm
         if now.hour == NIGHTLY_POWER_OFF_HOUR and now.minute == NIGHTLY_POWER_OFF_MINUTE:
-            mdc_comms_thread.queue_power_off_cmd(cmd_q)
+            queue_power_off_cmd(mdc_cmd_q)
 
     def update_tv_status(self, dt):
         if self.savingPower is True:
             return
 
-        if self.display_status_q.empty():
+        if mdc_status_q.empty():
             return
 
-        while not self.display_status_q.empty():
-            display_status = self.display_status_q.get()
+        while not mdc_status_q.empty():
+            display_status = mdc_status_q.get()
 
         power = display_status[0]
         source = display_status[1]
@@ -261,9 +258,20 @@ class PytronApp(App):
         return
 
 
-def init():
+def main(args):
+    global mdc_cmd_q, mdc_status_q
+
+    # Create a single input and a single output queue for all threads.
+    mdc_status_q = queue.Queue()
+    mdc_cmd_q = queue.Queue()
+
+    # Create the comms thread
+    comms_thread = MdcCommsThread(result_q=mdc_status_q, cmd_q=mdc_cmd_q)
+    comms_thread.start()
+
     Logger.info("Pytron: Initializing application....")
+    PytronApp().run()
 
 if __name__ == '__main__':
-    init()
-    PytronApp().run()
+    import sys
+    main(sys.argv[1:])

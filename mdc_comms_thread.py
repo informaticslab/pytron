@@ -11,7 +11,7 @@ DEST_PORT = 1515
 
 SIM_IP = 'localhost'       # ip of tv
 SIM_PORT = 1515
-USE_SIM = True
+USE_SIM = False
 
 mdc_format = Struct(
     "fields" / RawCopy(Struct(
