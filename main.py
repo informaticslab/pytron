@@ -9,8 +9,8 @@ from kivy.core.window import Window
 
 import datetime
 import queue
-from mdc_comms_thread import MdcCommsThread, queue_volume_cmd, queue_power_on_cmd, queue_power_off_cmd
-from mdc_comms_thread import queue_hmdi1_cmd, queue_hmdi2_cmd
+from mdc_comms_thread import MdcStatusThread, MdcCommandThread,\
+    queue_volume_cmd, queue_power_on_cmd, queue_power_off_cmd, queue_hmdi1_cmd, queue_hmdi2_cmd
 
 
 DEST_IP = '192.168.0.10'       # ip of tv
@@ -26,7 +26,9 @@ init_volume = 25
 set_volume = 25
 inactive_secs = 0
 
+CMD_SETTLE_SECS = 10
 POWER_SAVE_SECS = 240
+
 NIGHTLY_POWER_OFF_HOUR = 19
 NIGHTLY_POWER_OFF_MINUTE = 00
 
@@ -131,7 +133,7 @@ class PytronApp(App):
         Clock.schedule_interval(self.pi_screen_saver, 1.0)
         Clock.schedule_interval(self.nightly_power_off_tv, 50.0)
         Clock.schedule_interval(self.update_time, 1.0)
-        Clock.schedule_interval(self.update_tv_status, 5.0)
+        Clock.schedule_interval(self.update_tv_status, 1.0)
         # Create the comms thread
 
         return RootContainer()
@@ -183,6 +185,8 @@ class PytronApp(App):
             queue_power_off_cmd(mdc_cmd_q)
 
     def update_tv_status(self, dt):
+        if inactive_secs < CMD_SETTLE_SECS:
+            return
         if self.savingPower is True:
             return
 
@@ -265,9 +269,12 @@ def main(args):
     mdc_status_q = queue.Queue()
     mdc_cmd_q = queue.Queue()
 
-    # Create the comms thread
-    comms_thread = MdcCommsThread(result_q=mdc_status_q, cmd_q=mdc_cmd_q)
-    comms_thread.start()
+    # Create the comms threads
+    command_thread = MdcCommandThread(cmd_q=mdc_cmd_q)
+    command_thread.start()
+
+    status_thread = MdcStatusThread(status_q=mdc_status_q)
+    status_thread.start()
 
     Logger.info("Pytron: Initializing application....")
     PytronApp().run()
