@@ -1,7 +1,7 @@
 import socket
 import threading
 import queue
-from construct import *
+from construct import Struct, RawCopy, Const, Int8ub, Checksum, Bytes, core, this
 import time
 
 from binascii import hexlify
@@ -94,16 +94,67 @@ class ClientReply(object):
         self.data = data
 
 
-class MdcCommsThread(threading.Thread):
+class MdcCommandThread(threading.Thread):
     """ Implements the threading.Thread interface (start, join, etc.) and
         can be controlled via the cmd_q Queue attribute. Replies are
         placed in the reply_q Queue attribute.
     """
 
-    def __init__(self, result_q=None, cmd_q=None):
-        super(MdcCommsThread, self).__init__()
-        self.result_q = result_q
+    def __init__(self, cmd_q=None):
+        super(MdcCommandThread, self).__init__()
         self.cmd_q = cmd_q
+        self.alive = threading.Event()
+        self.alive.set()
+        self.socket = None
+
+        if USE_SIM:
+            self.ip = SIM_IP
+            self.port = SIM_PORT
+        else:
+            self.ip = DEST_IP
+            self.port = DEST_PORT
+
+    def run(self):
+
+        while self.alive.isSet():
+
+            try:
+                cmd_data = self.cmd_q.get(True, 0.05)
+                try:
+
+                    self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    self.socket.settimeout(4)
+                    self.socket.connect((self.ip, self.port))
+                    self.socket.sendall(cmd_data)
+                    data = self.socket.recv(1024)
+                except socket.error:
+                    continue
+                except socket.timeout:
+                    continue
+                finally:
+                    self.socket.close()
+
+            except queue.Empty:
+                continue
+
+        # came out of loop
+        self.socket.close()
+
+    def join(self, timeout=None):
+        self.alive.clear()
+        threading.Thread.join(self, timeout)
+
+
+
+class MdcStatusThread(threading.Thread):
+    """ Implements the threading.Thread interface (start, join, etc.) and
+        can be controlled via the cmd_q Queue attribute. Replies are
+        placed in the reply_q Queue attribute.
+    """
+
+    def __init__(self, status_q=None):
+        super(MdcStatusThread, self).__init__()
+        self.status_q = status_q
         self.alive = threading.Event()
         self.alive.set()
         self.socket = None
@@ -118,33 +169,10 @@ class MdcCommsThread(threading.Thread):
 
     def run(self):
 
-        cmd_q_empty_tics = 0
         while self.alive.isSet():
 
-            try:
-                cmd_data = self.cmd_q.get(True, 0.05)
-                try:
-
-                    self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    self.socket.settimeout(4)
-                    self.socket.connect((self.ip, self.port))
-                    self.socket.sendall(cmd_data)
-                    data = self.socket.recv(1024)
-                except socket.error:
-                    self.result_q.put((-1, -1, -1))
-                    continue
-                except socket.timeout:
-                    self.result_q.put((-1, -1, -1))
-                    continue
-                finally:
-                    self.socket.close()
-
-            except queue.Empty:
-                if cmd_q_empty_tics < 100:
-                    cmd_q_empty_tics += 1
-                    continue
-                else:
-                    cmd_q_empty_tics = 0
+            # sleep every second
+            time.sleep(1)
 
             try:
                 self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -157,10 +185,10 @@ class MdcCommsThread(threading.Thread):
                 self.socket.connect((self.ip, self.port ))
                 self.socket.sendall(self.mdc_status_request)
             except socket.timeout:
-                self.result_q.put((-1, -1, -1))
+                self.status_q.put((-1, -1, -1))
                 continue
             except socket.error:
-                self.result_q.put((-1, -1, -1))
+                self.status_q.put((-1, -1, -1))
                 continue
 
             # Receiving from client
@@ -170,23 +198,24 @@ class MdcCommsThread(threading.Thread):
                 # print("Checksum = {}".format(hexlify((sum(bytearray(data)[1:-1])).to_bytes(1, byteorder='big'))))
 
             except socket.error:
-                self.result_q.put((-1, -1, -1))
+                self.status_q.put((-1, -1, -1))
                 continue
 
             try:
                 resp = mdc_status_response.parse(data)
 
             except core.FieldError:
-                self.result_q.put((-1, -1, -1))
+                self.status_q.put((-1, -1, -1))
                 continue
 
                 #print("Pytron: Parsed message = {}".format(resp))
                 #print("Pytron: ACK/NACK = {}".format(resp.fields.value.ack_nack))
 
-            self.result_q.put((resp.fields.value.power, resp.fields.value.input, resp.fields.value.volume))
+            self.status_q.put((resp.fields.value.power, resp.fields.value.input, resp.fields.value.volume))
 
-            # came out of loop
-            self.socket.close()
+
+        # came out of loop
+        self.socket.close()
 
     def join(self, timeout=None):
         self.alive.clear()
@@ -195,26 +224,26 @@ class MdcCommsThread(threading.Thread):
 
 def main(args):
     # Create a single input and a single output queue for all threads.
-    status_result_q = queue.Queue()
+    status_q = queue.Queue()
     cmd_q = queue.Queue()
 
     # Create the comms thread
-    comms_thread = MdcCommsThread(result_q=status_result_q, cmd_q=cmd_q)
-    comms_thread.start()
+    status_thread = MdcStatusThread(status_q=status_q)
+    status_thread.start()
 
     # Now get 100 results
     count = 100
     while count > 0:
         try:
             # Blocking 'get' from a Queue.
-            result = status_result_q.get(True, 0.1)
-            print("Power = {}, Input = {}, Volume = {}, Time = {}".format(result[0], result[1], result[2], time.localtime(time.time())))
+            result = status_q.get(True, 0.1)
+            print("Power = {}, Input = {}, Volume = {}, Time = {}".format(result[0], hex(result[1]), result[2], time.strftime("%H:%M:%S")))
             count -= 1
         except queue.Empty:
             continue
 
     # Ask threads to die and wait for them to do it
-    comms_thread.join()
+    status_thread.join()
 
 
 if __name__ == '__main__':
