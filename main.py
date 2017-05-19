@@ -25,6 +25,7 @@ init_source = 0x21
 init_volume = 25
 set_volume = 25
 inactive_secs = 0
+power_off_touches = 0
 
 CMD_SETTLE_SECS = 10
 POWER_SAVE_SECS = 240
@@ -89,6 +90,9 @@ class RootContainer(FloatLayout):
         queue_power_on_cmd(mdc_cmd_q)
 
     def btn_power_off_touched(self):
+        global power_off_touches
+
+        power_off_touches += 1
         self.clear_inactive_secs()
         self.ids.powerOff.state = 'down'
         queue_power_off_cmd(mdc_cmd_q)
@@ -139,7 +143,12 @@ class PytronApp(App):
         return RootContainer()
 
     def update_time(self, dt):
-        self.root.ids.label_time.text = str(datetime.datetime.now().strftime("%a, %B %d, %I:%M:%S %p"))
+        global power_off_touches
+
+        self.root.ids.label_time.text = str(datetime.datetime.now().strftime("%a, %B %d, %-I:%M:%S %p"))
+        if power_off_touches == 3:
+            self.get_running_app().stop()
+        power_off_touches = 0
 
     def send_volume_update(self, dt):
         global set_volume
@@ -278,6 +287,10 @@ def main(args):
 
     Logger.info("Pytron: Initializing application....")
     PytronApp().run()
+
+    command_thread.join()
+    status_thread.join()
+
 
 if __name__ == '__main__':
     import sys
